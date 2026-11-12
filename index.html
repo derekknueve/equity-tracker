@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equity tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --ink: #15212f;
+    --muted: #586678;
+    --line: #dbe1e8;
+    --pos: #0a7a4a;
+    --neg: #b3261e;
+    --focus: #0b5fd6;
+    --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101823;
+      --surface: #182230;
+      --ink: #e9eef4;
+      --muted: #9aa8b9;
+      --line: #2b3748;
+      --pos: #4cc38a;
+      --neg: #ff8179;
+      --focus: #7db4ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    padding: 28px 20px 48px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+  .stamp { margin: 4px 0 0; color: var(--muted); }
+  .banner {
+    margin: 16px 0 0;
+    padding: 10px 14px;
+    border: 1px solid var(--neg);
+    border-radius: 6px;
+    color: var(--neg);
+  }
+  .panel {
+    margin-top: 22px;
+    padding: 18px 20px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .panel-head {
+    display: flex; flex-wrap: wrap; align-items: center;
+    justify-content: space-between; gap: 12px; margin-bottom: 14px;
+  }
+  h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 13px; color: var(--muted);
+    background: transparent; border: 0; padding: 6px 12px; cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { padding: 11px 10px; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  th { font-size: 13px; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+  td { border-bottom: 1px solid var(--line); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .sec { display: flex; align-items: center; gap: 10px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .sec b { font-weight: 600; }
+  .sec span.name { color: var(--muted); font-size: 13px; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .note { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-size: 14px; font-weight: 500; color: var(--ink);
+    background: transparent; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px 4px 9px; cursor: pointer;
+  }
+  .chip .swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid transparent; }
+  .chip[aria-pressed="false"] { color: var(--muted); }
+  .chip[aria-pressed="false"] .swatch { background: transparent !important; border-color: currentColor; }
+  .chart-box { position: relative; height: 460px; }
+  .hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+
+  .error { margin-top: 22px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .error p { margin: 6px 0 0; color: var(--muted); }
+  @media (max-width: 600px) {
+    body { padding: 20px 14px 36px; }
+    .chart-box { height: 340px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Equity tracker</h1>
+  <p class="stamp" id="stamp">Loading…</p>
+  <div class="banner" id="banner" hidden></div>
+  <div id="content" hidden>
+    <section class="panel" aria-labelledby="returns-h">
+      <div class="panel-head">
+        <h2 id="returns-h">Returns</h2>
+        <div class="seg" id="modeSeg" role="group" aria-label="Return basis">
+          <button type="button" data-v="cum" aria-pressed="true">Cumulative</button>
+          <button type="button" data-v="ann" aria-pressed="false">Annualized 3 and 5 year</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="returnsTable"></table></div>
+      <p class="note">Returns use dividend-adjusted closing prices (total return). Last close is the plain price.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="chart-h">
+      <div class="panel-head">
+        <h2 id="chart-h">Five-year history</h2>
+        <div class="controls">
+          <div class="seg" id="viewSeg" role="group" aria-label="Chart basis">
+            <button type="button" data-v="index" aria-pressed="true">Indexed to 100</button>
+            <button type="button" data-v="price" aria-pressed="false">Price</button>
+          </div>
+          <div class="seg" id="rangeSeg" role="group" aria-label="Time range">
+            <button type="button" data-v="1Y" aria-pressed="false">1Y</button>
+            <button type="button" data-v="3Y" aria-pressed="false">3Y</button>
+            <button type="button" data-v="5Y" aria-pressed="true">5Y</button>
+          </div>
+        </div>
+      </div>
+      <div class="chips" id="chips" role="group" aria-label="Show or hide securities"></div>
+      <div class="chart-box"><canvas id="chart" role="img" aria-label="Line chart comparing the securities over time"></canvas></div>
+      <p class="hint" id="hint"></p>
+    </section>
+  </div>
+  <div class="error" id="error" hidden></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  var PALETTE = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#7a7a2e"];
+  var state = { data: null, hidden: new Set(), view: "index", range: "5Y", mode: "cum" };
+  var chart = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  function pct(v) {
+    if (v == null) return "n/a";
+    return (v >= 0 ? "+" : "\u2212") + Math.abs(v * 100).toFixed(2) + "%";
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function fmtDate(iso, opts) {
+    return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", Object.assign({ timeZone: "UTC" }, opts));
+  }
+  function color(i) { return PALETTE[i % PALETTE.length]; }
+
+  function showError(err) {
+    $("stamp").textContent = "";
+    $("content").hidden = true;
+    var box = $("error");
+    box.hidden = false;
+    box.innerHTML = "<b>Couldn\u2019t load data.json</b><p>If this is the first time, open the repository\u2019s Actions tab and run \u201cRefresh tracker data\u201d once. " +
+      "If you opened this file straight from your computer, view it through GitHub Pages instead; browsers block local file loading.</p>";
+    console.error(err);
+  }
+
+  function init(data) {
+    state.data = data;
+    $("error").hidden = true;
+    $("content").hidden = false;
+    $("stamp").textContent = "Prices as of close, " +
+      fmtDate(data.asOf, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) +
+      ". Refreshed " + new Date(data.generatedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) + ".";
+
+    var ageDays = (Date.now() - new Date(data.asOf + "T00:00:00Z")) / 86400000;
+    var banner = $("banner");
+    if (ageDays > 5) {
+      banner.hidden = false;
+      banner.textContent = "This data is " + Math.floor(ageDays) + " days old. Check the Actions tab in your repository for a failed refresh.";
+    } else { banner.hidden = true; }
+
+    buildChips();
+    renderTable();
+    buildChart();
+  }
+
+  function renderTable() {
+    var d = state.data, ann = state.mode === "ann";
+    var cols = [
+      ["mtd", "MTD"],
+      ["m2", "Last 2 months"],
+      ["cy", "Calendar " + d.calendarYear],
+      [ann ? "y3ann" : "y3", ann ? "3 year (annualized)" : "3 year"],
+      [ann ? "y5ann" : "y5", ann ? "5 year (annualized)" : "5 year"]
+    ];
+    var html = "<thead><tr><th scope='col'>Security</th><th scope='col'>Last close</th>" +
+      cols.map(function (c) { return "<th scope='col'>" + c[1] + "</th>"; }).join("") + "</tr></thead><tbody>";
+    d.tickers.forEach(function (t, i) {
+      html += "<tr><th scope='row' style='font-weight:400'><div class='sec'><span class='swatch' style='background:" + color(i) + "'></span>" +
+        "<div><b>" + esc(t.symbol) + "</b> <span class='name'>" + esc(t.name) + "</span></div></div></th>" +
+        "<td>" + money.format(t.lastClose) + "</td>" +
+        cols.map(function (c) {
+          var v = t.returns[c[0]];
+          return "<td class='" + (v == null ? "" : v >= 0 ? "pos" : "neg") + "'>" + pct(v) + "</td>";
+        }).join("") + "</tr>";
+    });
+    $("returnsTable").innerHTML = html + "</tbody>";
+  }
+
+  function buildChips() {
+    var wrap = $("chips");
+    wrap.innerHTML = "";
+    state.data.tickers.forEach(function (t, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.setAttribute("aria-pressed", String(!state.hidden.has(t.symbol)));
+      b.innerHTML = "<span class='swatch' style='background:" + color(i) + ";border-color:" + color(i) + "'></span>" + esc(t.symbol);
+      b.addEventListener("click", function () {
+        if (state.hidden.has(t.symbol)) state.hidden.delete(t.symbol); else state.hidden.add(t.symbol);
+        b.setAttribute("aria-pressed", String(!state.hidden.has(t.symbol)));
+        buildChart();
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  function startIndex() {
+    var d = state.data;
+    if (state.range === "5Y") return 0;
+    var yrs = state.range === "3Y" ? 3 : 1;
+    var c = new Date(d.asOf + "T00:00:00Z");
+    c.setUTCFullYear(c.getUTCFullYear() - yrs);
+    var cut = c.toISOString().slice(0, 10), k = 0;
+    for (var i = 0; i < d.dates.length; i++) { if (d.dates[i] <= cut) k = i; else break; }
+    return k;
+  }
+
+  function buildChart() {
+    var d = state.data, start = startIndex(), index = state.view === "index";
+    var labels = d.dates.slice(start);
+    var css = getComputedStyle(document.documentElement);
+    var muted = css.getPropertyValue("--muted").trim(), grid = css.getPropertyValue("--line").trim();
+
+    var datasets = d.tickers.map(function (t, i) {
+      var raw = (index ? d.adj : d.close)[t.symbol].slice(start), vals = raw;
+      if (index) {
+        var base = raw.find(function (v) { return v != null; });
+        vals = raw.map(function (v) { return v == null ? null : v / base * 100; });
+      }
+      return {
+        label: t.symbol, data: vals, borderColor: color(i), backgroundColor: color(i),
+        borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0, spanGaps: true,
+        hidden: state.hidden.has(t.symbol)
+      };
+    });
+
+    if (chart) chart.destroy();
+    chart = new Chart($("chart"), {
+      type: "line",
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            itemSort: function (a, b) { return b.parsed.y - a.parsed.y; },
+            callbacks: {
+              title: function (items) {
+                return fmtDate(labels[items[0].dataIndex], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+              },
+              label: function (ctx) {
+                var y = ctx.parsed.y;
+                return index ? ctx.dataset.label + ": " + y.toFixed(1) + " (" + pct((y - 100) / 100) + ")"
+                             : ctx.dataset.label + ": " + money.format(y);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
+              callback: function (v, i) { return fmtDate(labels[i], { month: "short", year: "2-digit" }).replace(" ", " \u2019"); }
+            }
+          },
+          y: {
+            grid: { color: grid },
+            ticks: { color: muted, callback: function (v) { return index ? v : money.format(v); } },
+            title: { display: true, color: muted, text: index ? "Total return, start of period = 100" : "Closing price (USD)" }
+          }
+        }
+      }
+    });
+    $("hint").textContent = index
+      ? "Lines are rebased to 100 at the start of the selected range, using dividend-adjusted prices. Hover for values."
+      : "Raw closing prices, not adjusted for dividends. Hover for values.";
+  }
+
+  function wireSeg(id, key, after) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) return;
+      state[key] = b.dataset.v;
+      Array.prototype.forEach.call($(id).children, function (x) {
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      after();
+    });
+  }
+  wireSeg("modeSeg", "mode", renderTable);
+  wireSeg("viewSeg", "view", buildChart);
+  wireSeg("rangeSeg", "range", buildChart);
+
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+      if (state.data) buildChart();
+    });
+  }
+
+  fetch("data.json?ts=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(init)
+    .catch(showError);
+})();
+</script>
+</body>
+</html>
